@@ -15,6 +15,7 @@ const files = {
   '/llms.txt': 'text/plain; charset=utf-8',
   '/favicon.svg': 'image/svg+xml',
   '/.well-known/security.txt': 'text/plain; charset=utf-8',
+  '/.well-known/glama.json': 'application/json',
   '/manifest.json': 'application/manifest+json',
   '/sw.js': 'application/javascript; charset=utf-8',
   '/targets.html': 'text/html; charset=utf-8',
