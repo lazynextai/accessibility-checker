@@ -8,7 +8,7 @@ Preparation
 
 Before conducting UX testing, it is crucial to prepare the testing environment and ensure that the Accessibility Checker tool is functional and ready for testing. The following steps should be taken:
 
-1. **Review the tool's functionality**: Familiarize yourself with the Accessibility Checker tool's features and functionality, as outlined in the [docs/research/accessibility_checker_mvp.md](accessibility_checker_mvp.md) document.
+1. **Review the tool's functionality**: Familiarize yourself with the Accessibility Checker tool's features and functionality, as outlined in the [accessibility_checker_mvp.md](accessibility_checker_mvp.md) document.
 2. **Set up the testing environment**: Ensure that the testing environment is configured to simulate real-world scenarios, including different browsers, devices, and screen readers.
 3. **Gather testing materials**: Collect a variety of websites with different accessibility features and issues to test the tool's functionality and accuracy.
 
@@ -17,7 +17,7 @@ UX Testing Methodologies
 
 The following UX testing methodologies should be employed to ensure that the Accessibility Checker tool is user-friendly and accessible:
 
-1. **Heuristic evaluation**: Evaluate the tool's interface and functionality against established usability principles, such as those outlined in the [docs/research/accessibility_checker_advanced_wcag.md](accessibility_checker_advanced_wcag.md) document.
+1. **Heuristic evaluation**: Evaluate the tool's interface and functionality against established usability principles, such as those outlined in the [accessibility_checker_advanced_wcag.md](accessibility_checker_advanced_wcag.md) document.
 2. **User testing**: Conduct user testing with participants who have varying levels of accessibility expertise to identify areas for improvement and ensure that the tool is intuitive and easy to use.
 3. **A/B testing**: Conduct A/B testing to compare different design and functionality variations and determine which ones result in the best user experience.
 
