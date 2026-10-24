@@ -1,3 +1,10 @@
+> **Status: process guide, not a coverage claim.**
+> The authoritative list of shipped checks is the live `GET /rules` manifest
+> (served from `src/rules/manifest.js`; `test/rules-manifest.test.mjs` asserts it
+> matches every emitted rule). This document is a UX *testing methodology*
+> checklist only. Do not generate build tasks from it — any check named here
+> that is already in the manifest is shipped, not planned.
+
 Introduction to UX Testing Best Practices for Accessibility Checker
 =================================================================
 
