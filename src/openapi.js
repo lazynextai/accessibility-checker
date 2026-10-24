@@ -146,6 +146,7 @@ export const OPENAPI = {
     '/cancel': {
       post: {
         summary: 'Request Pro cancellation (email-confirmed)',
+        security: [{ LicenseEmail: [] }],
         description: 'Sends a confirmation link to the purchase email; the subscription ends only after `GET /confirm` consumes the token.',
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { license: { type: 'string', format: 'email' } }, required: ['license'] } } } },
         responses: {
@@ -171,6 +172,7 @@ export const OPENAPI = {
     '/monitor': {
       get: {
         summary: 'List monitors for a Pro license',
+        security: [{ LicenseEmail: [] }],
         parameters: [{ name: 'license', in: 'query', required: true, schema: { type: 'string', format: 'email' } }],
         responses: {
           '200': json({ type: 'object', properties: { monitors: { type: 'array', items: { $ref: '#/components/schemas/Monitor' } } }, required: ['monitors'] }),
@@ -180,6 +182,7 @@ export const OPENAPI = {
       },
       post: {
         summary: 'Add a daily monitor (email-confirmed)',
+        security: [{ LicenseEmail: [] }],
         description: 'Daily rendered rescan with score-drop email alerts. Max 50 monitors per license. Sends a confirmation link; the monitor activates on `GET /confirm`. The monitor pins the `viewport` it was created with (default mobile); monitors created before viewport support stay on desktop.',
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { license: { type: 'string', format: 'email' }, url: { type: 'string', format: 'uri' }, viewport: { type: 'string', enum: ['mobile', 'desktop'], description: 'Render profile the monitor pins for rescans (default mobile)' } }, required: ['license', 'url'] } } } },
         responses: {
@@ -192,6 +195,7 @@ export const OPENAPI = {
       },
       delete: {
         summary: 'Remove a monitor (email-confirmed)',
+        security: [{ LicenseEmail: [] }],
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { license: { type: 'string', format: 'email' }, url: { type: 'string', format: 'uri' } }, required: ['license', 'url'] } } } },
         responses: {
           '200': json({ $ref: '#/components/schemas/ConfirmRequired' }),
@@ -205,6 +209,7 @@ export const OPENAPI = {
     '/confirm': {
       get: {
         summary: 'Consume an emailed confirmation token',
+        security: [{ ConfirmToken: [] }],
         description: 'Single-use 15-minute tokens created by /cancel and /monitor mutations. Returns an HTML outcome page.',
         parameters: [{ name: 'token', in: 'query', required: true, schema: { type: 'string' } }],
         responses: {
@@ -215,6 +220,7 @@ export const OPENAPI = {
     '/unsubscribe': {
       get: {
         summary: 'Unsubscribe page (signed link from report/alert emails)',
+        security: [{ UnsubscribeSig: [] }],
         parameters: [
           { name: 'email', in: 'query', required: true, schema: { type: 'string', format: 'email' } },
           { name: 'sig', in: 'query', required: true, schema: { type: 'string' } },
@@ -226,6 +232,7 @@ export const OPENAPI = {
       },
       post: {
         summary: 'Unsubscribe (one-click, RFC 8058)',
+        security: [{ UnsubscribeSig: [] }],
         parameters: [
           { name: 'email', in: 'query', required: true, schema: { type: 'string', format: 'email' } },
           { name: 'sig', in: 'query', required: true, schema: { type: 'string' } },
@@ -296,6 +303,43 @@ export const OPENAPI = {
     },
   },
   components: {
+    // Auth model, stated honestly: this API issues no API keys, no bearer tokens,
+    // and holds no user accounts. Three mechanisms do the work, and each is
+    // declared below so a consumer (or a security scanner) can see which
+    // operations are gated by what. Read-only + compute endpoints are
+    // deliberately anonymous — gated by IP quota, not by identity.
+    //
+    //   LicenseEmail      entitlement identifier (the purchase email). NOT a
+    //                     secret: it selects the Pro plan and raises limits, so
+    //                     leaking it grants no data access, only quota. Mutations
+    //                     that spend it (cancel, monitor changes) are additionally
+    //                     gated by ConfirmToken.
+    //   ConfirmToken      single-use, 15-minute token emailed to the license
+    //                     address. Consumed by GET /confirm. This is the real
+    //                     authorization step for state changes.
+    //   UnsubscribeSig    HMAC-SHA256 signature over the address, minted by the
+    //                     platform and embedded in outbound mail footers. Required
+    //                     so a link scanner can't unsubscribe a bystander.
+    securitySchemes: {
+      LicenseEmail: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'license',
+        description: 'Pro purchase email. Entitlement selector, not a secret — see the auth-model note at the top of this document. Sent as a query parameter on GET /monitor and in the JSON body elsewhere.',
+      },
+      ConfirmToken: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'token',
+        description: 'Single-use confirmation token emailed to the license address (15-minute TTL). The actual authorization step for /cancel and /monitor mutations.',
+      },
+      UnsubscribeSig: {
+        type: 'apiKey',
+        in: 'query',
+        name: 'sig',
+        description: 'HMAC-SHA256 signature over the address (first 24 hex chars), minted by the platform. Prevents third-party unsubscribes.',
+      },
+    },
     schemas: {
       Error: {
         type: 'object',
