@@ -96,3 +96,52 @@ test('HEAD on the new surfaces routes like GET', async () => {
     assert.match(r.headers.get('content-type'), type);
   }
 });
+
+test('security schemes are declared and every gated operation references one', () => {
+  const schemes = OPENAPI.securitySchemes || OPENAPI.components?.securitySchemes;
+  assert.ok(schemes, 'securitySchemes must be declared');
+  const names = new Set(Object.keys(schemes));
+  for (const n of ['LicenseEmail', 'ConfirmToken', 'UnsubscribeSig']) {
+    assert.ok(names.has(n), `missing security scheme ${n}`);
+  }
+  // Any operation that declares security must reference a declared scheme, and
+  // carry no unsupported scope names (apiKey schemes have none).
+  let gated = 0;
+  for (const [path, item] of Object.entries(OPENAPI.paths)) {
+    for (const [method, op] of Object.entries(item)) {
+      if (method === 'parameters' || !op.security) continue;
+      gated += 1;
+      for (const req of op.security) {
+        for (const [name, scopes] of Object.entries(req)) {
+          assert.ok(names.has(name), `${method.toUpperCase()} ${path} references undeclared scheme ${name}`);
+          assert.deepEqual(scopes, [], `${name} is apiKey — scopes must be empty`);
+        }
+      }
+    }
+  }
+  assert.equal(gated, 7, 'expected 7 gated operations: GET/POST/DELETE /monitor, POST /cancel, GET /confirm, GET/POST /unsubscribe');
+});
+
+test('sensitive mutations are never documented as unauthenticated', () => {
+  const must = [
+    ['/monitor', 'delete'], ['/monitor', 'post'], ['/monitor', 'get'],
+    ['/cancel', 'post'], ['/confirm', 'get'],
+    ['/unsubscribe', 'get'], ['/unsubscribe', 'post'],
+  ];
+  for (const [path, method] of must) {
+    const op = OPENAPI.paths[path]?.[method];
+    assert.ok(op, `${method} ${path} missing`);
+    assert.ok(Array.isArray(op.security) && op.security.length > 0,
+      `${method.toUpperCase()} ${path} performs a state change and must declare security`);
+  }
+});
+
+test('public compute endpoints stay explicitly anonymous (no phantom auth)', () => {
+  // These are gated by IP quota / nothing at all — adding a security
+  // requirement here would be a lie that breaks SDK autogeneration.
+  for (const [path, method] of [['/scan', 'post'], ['/rules', 'get'], ['/health', 'get'], ['/mcp', 'post'], ['/a2a', 'post'], ['/lead', 'post']]) {
+    const op = OPENAPI.paths[path]?.[method];
+    assert.ok(op, `${method} ${path} missing`);
+    assert.equal(op.security, undefined, `${method.toUpperCase()} ${path} must not claim auth it doesn't have`);
+  }
+});
