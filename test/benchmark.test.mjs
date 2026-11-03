@@ -95,12 +95,58 @@ test('pasted-HTML scans never touch scan_stats', async () => {
 });
 
 test('test/operator hosts are excluded from the benchmark corpus', async () => {
-  for (const u of ['https://x.test', 'https://checker.lazynext.com', 'https://example.com', 'https://10.0.0.5', 'https://localhost:8080']) {
+  for (const u of [
+    'https://x.test',
+    'https://lazynext.com',
+    'https://checker.lazynext.com',
+    'https://blog.lazynext.com',
+    'https://lazynext.github.io',
+    'https://lazynext-landing.github.io',
+    'https://lazynext-ai.github.io/accessibility-checker/',
+    'https://ai-company-os.dry-hall-6a50.workers.dev',
+    'https://example.com',
+    'https://shop.example.org',
+    'https://10.0.0.5',
+    'http://localhost:8080',
+  ]) {
     const calls = [];
     const env = mockEnv({ 'license:pro@x.test': 'pro' }, { ...RENDER, ...statsHandlers({ t: 50, below: 10 }, calls) });
     const r = await post('/scan', { url: u, license: 'pro@x.test' }, {}, env);
     assert.equal(r.status, 200, u);
     assert.equal(calls.filter((c) => /scan_stats/.test(c.sql)).length, 0, u);
+  }
+});
+
+test('malformed hostnames from pasted URL lists never enter the corpus', async () => {
+  // `isHttpUrl` only checks the scheme and URL parsing accepts `)` and `,`,
+  // so these reached the corpus before the strict hostname gate (audit
+  // 2026-11-03: rows like `...workers.dev)` and `wellknown.network),`).
+  for (const u of [
+    'https://agent-forum.agent-forum-worker.workers.dev),',
+    'https://wellknown.network),',
+    'https://trailing-comma.com,',
+    'https://paren.example-shop.com)',
+  ]) {
+    const calls = [];
+    const env = mockEnv({ 'license:pro@x.test': 'pro' }, { ...RENDER, ...statsHandlers({ t: 50, below: 10 }, calls) });
+    const r = await post('/scan', { url: u, license: 'pro@x.test' }, {}, env);
+    assert.equal(r.status, 200, u);
+    assert.equal(calls.filter((c) => /scan_stats/.test(c.sql)).length, 0, u);
+  }
+});
+
+test('a genuinely external host still enters the corpus with its bare hostname', async () => {
+  for (const [u, host] of [
+    ['https://www.corpusiq.io/pricing?utm=1', 'www.corpusiq.io'],
+    ['https://sub.acme-shop.co.uk.', 'sub.acme-shop.co.uk'],
+  ]) {
+    const calls = [];
+    const env = mockEnv({ 'license:pro@x.test': 'pro' }, { ...RENDER, ...statsHandlers({ t: 50, below: 10 }, calls) });
+    const r = await post('/scan', { url: u, license: 'pro@x.test' }, {}, env);
+    assert.equal(r.status, 200, u);
+    const ins = calls.find((c) => /INSERT INTO scan_stats/.test(c.sql));
+    assert.ok(ins, `expected a scan_stats insert for ${u}`);
+    assert.equal(ins.params[3], host);
   }
 });
 

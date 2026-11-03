@@ -19,14 +19,34 @@ const MIN_BENCH_SITES = 10; // below this a percentile means nothing — hide it
 // would skew the distribution (the stored report corpus is overwhelmingly
 // our own E2E scans), reserved TLDs never resolve publicly, and bare IPs
 // aren't comparable "sites" (almost always internal infra).
+//
+// The hostname must also pass a strict DNS shape before any of that is even
+// considered. URL parsing does NOT reject `)` or `,` — they are not WHATWG
+// forbidden host code points — so pasting a comma-separated URL list leaked
+// rows like `agent-forum.agent-forum-worker.workers.dev)` and
+// `wellknown.network),` into the corpus (see
+// docs/research/scan-traffic-provenance-2026-11-03.md). A hostname that fails
+// this regex is not a site: at least one dot, ASCII alphanumerics and hyphens
+// only, every label 1-63 chars starting and ending alphanumeric.
+//
+// The platform worker mirrors this rule in `worker/src/scanprovenance.ts`
+// (benchHost) so the funnel can tell outside traffic from ours; the two are
+// pinned together by a parity test. Change the rule in BOTH places.
+const HOSTNAME_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 const benchHost = (u) => {
+  // No URL at all = pasted-HTML scan: it has no site, so it must never enter
+  // the "distinct real sites" corpus.
+  if (typeof u !== 'string' || !u || !/^https?:\/\//i.test(u)) return null;
   let h;
-  try { h = new URL(u).hostname.toLowerCase(); } catch { return null; }
-  if (!h || h === 'localhost' || h.includes(':') ||
+  try { h = new URL(u).hostname.toLowerCase().replace(/\.$/, ''); } catch { return null; }
+  if (!h || h.length > 253 || h.includes(':') || !HOSTNAME_RE.test(h)) return null;
+  if (h === 'localhost' ||
       h === 'lazynext.com' || h.endsWith('.lazynext.com') ||
-      h === 'lazynext-ai.github.io' ||
+      h === 'workers.dev' || h.endsWith('.workers.dev') ||
+      h.endsWith('.github.io') ||
       h === 'example.com' || h.endsWith('.example.com') ||
-      h === 'example.org' || h === 'example.net' ||
+      h === 'example.org' || h.endsWith('.example.org') ||
+      h === 'example.net' || h.endsWith('.example.net') ||
       /\.(test|invalid|local|internal|lan|example)$/.test(h) ||
       /^\d+\.\d+\.\d+\.\d+$/.test(h)) return null;
   return h;
