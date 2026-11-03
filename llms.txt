@@ -1,11 +1,13 @@
 # Accessibility Checker
 
-> Free WCAG 2.1 + 2.2 accessibility scanner. Scan a page or a whole site;
-> Pro adds rendered scans, daily monitoring with score-drop alerts, and
-> emailed reports. 14-day free trial.
+> Free WCAG 2.1 + 2.2 accessibility scanner. Scan a page or a whole site
+> (3 rendered scans/day, 3-page crawls); Pro raises the limits and adds
+> daily monitoring with score-drop alerts and emailed reports. 14-day free trial.
 
 - Site: https://checker.lazynext.com/
 - API: https://checker.lazynext.com (same-origin — POST /scan, GET /report/:id, GET /badge/:id.svg, GET /rules, POST /lead, GET /checkout, POST /cancel, GET|POST|DELETE /monitor)
+- MCP: https://checker.lazynext.com/mcp (JSON-RPC 2.0 — scan_url, scan_html, get_report, list_rules; same 3 scans/day/IP free tier)
+- A2A: https://checker.lazynext.com/a2a (JSON-RPC 2.0 — message/send, tasks/send, tasks/get; agent card at https://checker.lazynext.com/.well-known/agent.json)
 - OpenAPI: https://checker.lazynext.com/openapi.json
 - Coverage catalog (HTML): https://checker.lazynext.com/rules with Accept: text/html
 - Built by: https://lazynext.com
