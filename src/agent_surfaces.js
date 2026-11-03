@@ -83,11 +83,11 @@ async function callTool(env, kv, ip, origin, name, args = {}) {
     return JSON.parse(raw);
   }
   if (name === 'scan_url') {
-    const r = await runScan(env, kv, { url: args.url, site: args.site === true, viewport: args.viewport, license: args.license, ip, origin });
+    const r = await runScan(env, kv, { url: args.url, site: args.site === true, viewport: args.viewport, license: args.license, ip, origin, surface: 'mcp' });
     return r.ok ? r.result : { error: r.payload.error, status: r.status, ...r.payload };
   }
   if (name === 'scan_html') {
-    const r = await runScan(env, kv, { html: args.html, ip, origin });
+    const r = await runScan(env, kv, { html: args.html, ip, origin, surface: 'mcp' });
     return r.ok ? r.result : { error: r.payload.error, status: r.status, ...r.payload };
   }
   return { error: `unknown tool: ${name}` };
@@ -185,8 +185,8 @@ export async function handleA2a(request, env, kv, ip, origin) {
         break;
       }
       const r = urlMatch
-        ? await runScan(env, kv, { url: urlMatch[0], ip, origin })
-        : await runScan(env, kv, { html: htmlMatch[0], ip, origin });
+        ? await runScan(env, kv, { url: urlMatch[0], ip, origin, surface: 'a2a' })
+        : await runScan(env, kv, { html: htmlMatch[0], ip, origin, surface: 'a2a' });
       if (!r.ok) { out = rpcErr(msg.id, -32000, r.payload.error ?? 'scan failed'); break; }
       const id = (r.result.report ?? '').split('/report/')[1] ?? crypto.randomUUID().slice(0, 12);
       out = rpcOk(msg.id, { task: taskView(id, r.result) });
