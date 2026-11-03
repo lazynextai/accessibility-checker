@@ -11,6 +11,7 @@ import { checkCrossPages } from './rules/crosspage.js';
 import { crawlSite } from './crawl.js';
 import { checkFocusDepth } from './rules/focuscycle.js';
 import { isHttpUrl, withinBytes } from './validator.js';
+import { classifyScanSource } from './scan_src.js';
 
 const FREE_LIMIT = 3; // rendered scans per IP per day
 const MIN_BENCH_SITES = 10; // below this a percentile means nothing — hide it
@@ -69,7 +70,7 @@ const cacheBust = (u) => {
 // Returns { ok: true, result, pro, rendered } or
 //         { ok: false, status, payload }  — map payload onto the HTTP/JSON-RPC
 // surface unchanged.
-export async function runScan(env, kv, { url, html, site, license, email_report, viewport, ip, origin }) {
+export async function runScan(env, kv, { url, html, site, license, email_report, viewport, ip, origin, surface }) {
   const level = await kv.planLevel(env, license); // 0 free / 1 pro / 2 agency
   const pro = level > 0;
   const planName = level >= 2 ? 'agency' : pro ? 'pro' : 'free';
@@ -169,6 +170,10 @@ export async function runScan(env, kv, { url, html, site, license, email_report,
   // per distinct site: GROUP BY host + MAX(created_at) makes each host
   // contribute only its latest score (rescans don't pad the corpus).
   const statHost = isHttpUrl(url) ? benchHost(url) : null;
+  // Provenance stamp — computed from the caller surface/ip and whether the
+  // target is an outside site. Deliberately added ONLY to the stored record,
+  // not the response: the scan result shape is behaviour-parity fixed.
+  const src = classifyScanSource({ surface, external: statHost !== null, ip, license, email_report, site });
   if (statHost) {
     try {
       const r = await kv.platform(env, '/query', { method: 'POST', body: JSON.stringify({ sql: 'SELECT COUNT(*) t, COALESCE(SUM(s < ?),0) below FROM (SELECT score AS s, MAX(created_at) FROM scan_stats WHERE host IS NOT NULL GROUP BY host)', params: [result.score] }) });
@@ -190,7 +195,7 @@ export async function runScan(env, kv, { url, html, site, license, email_report,
     await Promise.all([
       statWrite,
       (async () => {
-        await kv.kvPut(env, `report:${id}`, JSON.stringify({ ...result, url: url ?? null, ts: Date.now() }), 2592000);
+        await kv.kvPut(env, `report:${id}`, JSON.stringify({ ...result, url: url ?? null, ts: Date.now(), src }), 2592000);
         result.report = `${origin}/report/${id}`;
       })(),
     ]);
