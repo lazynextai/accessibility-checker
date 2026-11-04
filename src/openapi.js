@@ -226,8 +226,8 @@ export const OPENAPI = {
           { name: 'sig', in: 'query', required: true, schema: { type: 'string' } },
         ],
         responses: {
-          '200': { description: 'HTML unsubscribe confirmation page', content: { 'text/html': { schema: { type: 'string' } } } },
-          '403': { description: 'Invalid link', content: { 'text/html': { schema: { type: 'string' } } } },
+          '200': { description: 'HTML unsubscribe confirmation page (JS-free, noindex; POST confirms)', content: { 'text/html': { schema: { type: 'string' } } } },
+          '403': err('Invalid link'),
         },
       },
       post: {

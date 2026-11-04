@@ -202,28 +202,45 @@ export default {
       return respond({ ok: r.ok, ...(r.ok ? {} : { detail: d }) }, r.ok ? 200 : 502);
     }
 
-    // Marketing-email opt-out (CAN-SPAM / GDPR / RFC 8058 one-click). GET is
-    // the link a human clicks in the footer; POST is the mailbox-provider
-    // one-click (List-Unsubscribe=One-Click body). Both verify the signed
-    // email+sig pair, then the platform writes KV flag + D1 opt-out + Brevo
-    // blacklist in one mutation path.
+    // Marketing-email opt-out (CAN-SPAM / GDPR / RFC 8058 one-click). POST is
+    // the mailbox-provider one-click (List-Unsubscribe=One-Click body) AND the
+    // human's "Yes, unsubscribe" form button — both run the same signed
+    // mutation. GET renders a JS-free confirmation page and NEVER calls the
+    // platform: with no method guard, a link scanner or mail-avatar prefetch
+    // used to fire the mutation for someone who had merely opened the email.
     if ((request.method === 'GET' || request.method === 'POST') && url.pathname === '/unsubscribe') {
       const email = (url.searchParams.get('email') ?? '').toLowerCase();
       const sig = url.searchParams.get('sig') ?? '';
       const valid = isEmail(email) && sig === await unsubSig(env, email);
       if (!valid) {
-        if (request.method === 'POST') return respond({ error: 'invalid link' }, 403);
-        return confirmPage('Invalid link',
-          '<p>This unsubscribe link is invalid. Check that you used the complete URL from the email.</p>', 403);
+        // Same 403 on both methods; never render a page that could reveal
+        // whether an address is real.
+        return respond({ error: 'invalid link' }, 403);
+      }
+      if (request.method !== 'POST') {
+        // No `action` attr → the form re-POSTs this exact URL with the query
+        // string (email + sig) intact. No platform call on this path.
+        return new Response(`<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex">
+<title>Unsubscribe from Lazynext emails</title>
+<body style="font-family:system-ui;max-width:640px;margin:4rem auto;padding:0 1rem">
+<h1>Unsubscribe ${esc(email)} from Lazynext emails?</h1>
+<form method="post"><button type="submit">Yes, unsubscribe</button></form>
+<p><a href="/">Keep my subscription</a></p>`,
+          {
+            status: 200,
+            headers: {
+              'content-type': 'text/html; charset=utf-8',
+              // form-action 'self' is required: form-action falls back to
+              // default-src, so a literal `default-src 'none'` alone would
+              // block this very form's POST in browsers.
+              'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
+              'x-robots-tag': 'noindex',
+              'cache-control': 'no-store',
+            },
+          });
       }
       const r = await platform(env, '/unsubscribe', { method: 'POST', body: JSON.stringify({ email }) });
-      if (request.method === 'POST') return respond({ ok: r.ok }, r.ok ? 200 : 502);
-      if (!r.ok) {
-        return confirmPage('Something went wrong',
-          '<p>We could not process your unsubscribe. Please try again in a few minutes or email support@lazynext.com.</p>', 502);
-      }
-      return confirmPage("You're unsubscribed",
-        `<p><b>${esc(email)}</b> will no longer receive marketing emails from Lazynext.</p>`);
+      return respond({ ok: r.ok }, r.ok ? 200 : 502);
     }
 
     // Rule coverage manifest — every WCAG criterion the scanner can emit, with

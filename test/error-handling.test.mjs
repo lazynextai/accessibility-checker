@@ -151,28 +151,37 @@ test('POST /cancel 404s for a well-formed but non-Pro email', async () => {
 
 // ── Marketing-email unsubscribe ───────────────────────────────────────────
 // /unsubscribe verifies an HMAC(email, PLATFORM_TOKEN) sig — the platform
-// worker mints the same sig from API_TOKEN (same secret), so valid links
-// forward to the platform's /unsubscribe mutator and bad ones die at 403.
+// worker mints the same sig from API_TOKEN (same secret). POST carries the
+// mutation (RFC 8058 one-click + the human's confirm button); GET only
+// renders a JS-free confirmation page and must never reach the mutator — a
+// link scanner / mail-avatar prefetch must not opt someone out for opening
+// an email. Bad sigs get the same 403 JSON on both methods.
 import { createHmac } from 'node:crypto';
 const unsubSig = (email) =>
   createHmac('sha256', 'test-token').update(email.toLowerCase()).digest('hex').slice(0, 24);
 
-test('GET /unsubscribe 403s without a valid sig', async () => {
+test('GET /unsubscribe 403s without a valid sig and never renders a page', async () => {
   for (const p of ['/unsubscribe', '/unsubscribe?email=a@b.test', '/unsubscribe?email=a@b.test&sig=deadbeef']) {
     const r = await get(p);
     assert.equal(r.status, 403, p);
+    assert.deepEqual(await r.json(), { error: 'invalid link' }, p); // no HTML confirmation, no address oracle
   }
 });
 
-test('GET /unsubscribe with a valid sig forwards the email and confirms', async () => {
+test('GET /unsubscribe with a valid sig renders a JS-free confirmation page without mutating', async () => {
   let forwarded;
   const env = mockEnv({}, {
     '/unsubscribe': async (req) => { forwarded = (await req.json()).email; return Response.json({ ok: true }); },
   });
   const r = await get(`/unsubscribe?email=${encodeURIComponent('A@B.TEST')}&sig=${unsubSig('A@B.TEST')}`, {}, env);
   assert.equal(r.status, 200);
-  assert.match(await r.text(), /unsubscribed/i);
-  assert.equal(forwarded, 'a@b.test'); // normalized lowercase at the mutator boundary
+  assert.equal(forwarded, undefined); // the platform mutator must never see a GET
+  const body = await r.text();
+  assert.ok(body.includes('<form method="post"'), 'confirm form re-POSTs the current URL');
+  assert.ok(body.includes('noindex'), 'confirmation page must be robots-noindexed');
+  assert.ok(body.includes('Unsubscribe a@b.test from Lazynext emails?'), 'escaping keeps the email in the heading');
+  assert.equal(r.headers.get('x-robots-tag'), 'noindex');
+  assert.equal(r.headers.get('cache-control'), 'no-store');
 });
 
 test('POST /unsubscribe answers RFC 8058 one-click JSON for mailbox providers', async () => {
@@ -181,6 +190,17 @@ test('POST /unsubscribe answers RFC 8058 one-click JSON for mailbox providers', 
     { headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'List-Unsubscribe=One-Click' });
   assert.equal(r.status, 200);
   assert.equal((await r.json()).ok, true);
+});
+
+test('POST /unsubscribe with a valid sig runs the mutation on the normalized email', async () => {
+  let forwarded;
+  const env = mockEnv({}, {
+    '/unsubscribe': async (req) => { forwarded = (await req.json()).email; return Response.json({ ok: true }); },
+  });
+  const r = await raw('POST', `/unsubscribe?email=${encodeURIComponent('A@B.TEST')}&sig=${unsubSig('A@B.TEST')}`, {}, env);
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).ok, true);
+  assert.equal(forwarded, 'a@b.test'); // normalized lowercase at the mutator boundary
 });
 
 test('POST /unsubscribe 502s when the platform mutation fails', async () => {
