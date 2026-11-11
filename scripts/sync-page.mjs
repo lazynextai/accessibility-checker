@@ -14,6 +14,7 @@ const files = {
   '/sitemap.xml': 'application/xml; charset=utf-8',
   '/llms.txt': 'text/plain; charset=utf-8',
   '/favicon.svg': 'image/svg+xml',
+  '/directree-badge.svg': 'image/svg+xml',
   '/.well-known/security.txt': 'text/plain; charset=utf-8',
   '/.well-known/glama.json': 'application/json',
   '/manifest.json': 'application/manifest+json',
