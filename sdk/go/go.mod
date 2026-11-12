@@ -1,3 +1,3 @@
 module github.com/Lazynext-AI/accessibility-checker/sdk/go
 
-go 1.21
+go 1.26
