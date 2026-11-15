@@ -130,3 +130,15 @@ test('unfiltered zero-issue report keeps the plain empty state', async () => {
   const html = await (await get('/report/z', {}, env)).text();
   assert.match(html, /No issues found/);
 });
+
+test('report embeds wrap the long badge snippet so tiny screens do not overflow', async () => {
+  const env = mockEnv({ 'report:v': JSON.stringify(rep) });
+  const html = await (await get('/report/v', {}, env)).text();
+  // The badge-embed <code> carries word-break so a long snippet cannot
+  // push the page wider than the viewport on narrow phones (regression:
+  // 339px code block overflowed a 320px viewport).
+  assert.match(html, /<code style="user-select:all;word-break:break-all">/);
+  // Issue + page-group surfaces harden long URLs the same way.
+  assert.match(html, /style="word-break:break-word;overflow-wrap:anywhere"/);
+  assert.match(html, /word-break:break-all/);
+});
