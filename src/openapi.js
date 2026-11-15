@@ -295,6 +295,12 @@ export const OPENAPI = {
         responses: { '200': json({ type: 'object' }) },
       },
     },
+    '/manifest.webmanifest': {
+      get: {
+        summary: 'PWA manifest (.webmanifest alias)',
+        responses: { '200': json({ type: 'object' }) },
+      },
+    },
     '/llms.txt': {
       get: {
         summary: 'LLM-facing service summary',
