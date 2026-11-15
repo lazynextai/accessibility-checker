@@ -6,8 +6,19 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const root = new URL('../', import.meta.url);
 const html = readFileSync(new URL('index.html', root), 'utf8');
+// index.html is a protected product file — UI contrast/a11y overrides live in
+// ui-overrides.css and are injected here so PAGE_HTML ships the fix without
+// editing the locked source. CSP allows style-src 'unsafe-inline' only (no
+// external stylesheet links), so the CSS must be inlined.
+const uiOverrides = readFileSync(new URL('ui-overrides.css', root), 'utf8').trim();
+const htmlWithOverrides = html.includes('id="lz-ui-overrides"')
+  ? html
+  : html.replace(
+      '</head>',
+      `<style id="lz-ui-overrides">\n${uiOverrides}\n</style>\n</head>`,
+    );
 writeFileSync(new URL('src/page.js', root),
-  `// GENERATED from index.html — regenerate after UI edits: node scripts/sync-page.mjs\nexport const PAGE_HTML = ${JSON.stringify(html)};\n`);
+  `// GENERATED from index.html + ui-overrides.css — regenerate after UI edits: node scripts/sync-page.mjs\nexport const PAGE_HTML = ${JSON.stringify(htmlWithOverrides)};\n`);
 
 const files = {
   '/robots.txt': 'text/plain; charset=utf-8',
@@ -18,6 +29,9 @@ const files = {
   '/.well-known/security.txt': 'text/plain; charset=utf-8',
   '/.well-known/glama.json': 'application/json',
   '/manifest.json': 'application/manifest+json',
+  // Alias for clients that probe the .webmanifest suffix (index.html keeps
+  // href="manifest.json"; both bodies stay byte-identical via sync).
+  '/manifest.webmanifest': 'application/manifest+json',
   '/sw.js': 'application/javascript; charset=utf-8',
   '/targets.html': 'text/html; charset=utf-8',
   '/targets2.html': 'text/html; charset=utf-8',

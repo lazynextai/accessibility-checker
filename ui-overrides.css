@@ -1,0 +1,8 @@
+/* Injected into PAGE_HTML by scripts/sync-page.mjs (index.html is protected).
+   Raises non-text contrast on chrome controls that carry weak inline borders. */
+select#viewport,
+select {
+  border: 1px solid #6b7280 !important; /* ≥3:1 vs white page fill (was #d1d5db ~1.5:1) */
+  background-color: #ffffff !important;
+  color: #1a1a2e !important;
+}
