@@ -106,13 +106,31 @@ test('test/operator hosts are excluded from the benchmark corpus', async () => {
     'https://ai-company-os.dry-hall-6a50.workers.dev',
     'https://example.com',
     'https://shop.example.org',
-    'https://10.0.0.5',
-    'http://localhost:8080',
   ]) {
     const calls = [];
     const env = mockEnv({ 'license:pro@x.test': 'pro' }, { ...RENDER, ...statsHandlers({ t: 50, below: 10 }, calls) });
     const r = await post('/scan', { url: u, license: 'pro@x.test' }, {}, env);
     assert.equal(r.status, 200, u);
+    assert.equal(calls.filter((c) => /scan_stats/.test(c.sql)).length, 0, u);
+  }
+});
+
+test('private/IP-literal hosts are rejected before any render (SSRF guard)', async () => {
+  // These are not "sites that stay out of the corpus" — they used to render
+  // (headless Chromium fetched the local/private host) and were only kept
+  // out of the corpus by benchHost. The SSRF guard closes that: a 400 comes
+  // back before render/crawl/quota. See src/urlguard.js.
+  for (const u of [
+    'https://10.0.0.5',
+    'http://localhost:8080',
+    'http://127.0.0.1:9/',
+    'http://169.254.169.254/latest/meta-data',
+    'http://[::ffff:169.254.169.254]/latest/meta-data',
+  ]) {
+    const calls = [];
+    const env = mockEnv({ 'license:pro@x.test': 'pro' }, { ...RENDER, ...statsHandlers({ t: 50, below: 10 }, calls) });
+    const r = await post('/scan', { url: u, license: 'pro@x.test' }, {}, env);
+    assert.equal(r.status, 400, u);
     assert.equal(calls.filter((c) => /scan_stats/.test(c.sql)).length, 0, u);
   }
 });

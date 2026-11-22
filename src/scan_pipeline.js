@@ -11,6 +11,7 @@ import { checkCrossPages } from './rules/crosspage.js';
 import { crawlSite } from './crawl.js';
 import { checkFocusDepth } from './rules/focuscycle.js';
 import { isHttpUrl, withinBytes } from './validator.js';
+import { isPublicHttpUrl } from './urlguard.js';
 import { classifyScanSource } from './scan_src.js';
 
 const FREE_LIMIT = 3; // rendered scans per IP per day
@@ -71,6 +72,17 @@ const cacheBust = (u) => {
 //         { ok: false, status, payload }  — map payload onto the HTTP/JSON-RPC
 // surface unchanged.
 export async function runScan(env, kv, { url, html, site, license, email_report, viewport, ip, origin, surface }) {
+  // SSRF guard — any URL-bearing scan must name a public-routable host
+  // before a single quota counter, render, crawl, or fallback fetch happens.
+  // This single point covers POST /scan, MCP scan_url, A2A tasks/send, and
+  // the platform's monitor rescans (which re-enter through /scan): a blocked
+  // host fails closed with 400 and never touches the browser binding or
+  // consumes the daily scan quota. Non-http inputs keep their existing
+  // "provide {url}" 400 below.
+  if (typeof url === 'string' && isHttpUrl(url) && !isPublicHttpUrl(url)) {
+    return { ok: false, status: 400, payload: { error: 'url host not allowed (private/local/link-local hosts are blocked)' } };
+  }
+
   const level = await kv.planLevel(env, license); // 0 free / 1 pro / 2 agency
   const pro = level > 0;
   const planName = level >= 2 ? 'agency' : pro ? 'pro' : 'free';
