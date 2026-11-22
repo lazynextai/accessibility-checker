@@ -222,13 +222,21 @@ test('e2e: /scan external URL with no IP and no license stamps unknown', async (
 });
 
 test('e2e: pasted-HTML and reserved-domain scans stamp fixture', async () => {
-  for (const body of [{ html: '<img src=a>' }, { url: 'https://example.com' }, { url: 'http://localhost:9/callback' }]) {
+  for (const body of [{ html: '<img src=a>' }, { url: 'https://example.com' }]) {
     const kv = {};
     const env = mockEnv(kv, body.html !== undefined ? {} : { ...RENDER, ...NO_STATS });
     const r = await post('/scan', body, { headers: { 'content-type': 'application/json', 'cf-connecting-ip': '49.205.194.4' } }, env);
     assert.equal(r.status, 200, JSON.stringify(body));
     assert.equal(storedReport(kv).record.src, 'fixture');
   }
+});
+
+test('e2e: private/localhost scan URLs are rejected pre-render (SSRF guard)', async () => {
+  const kv = {};
+  const env = mockEnv(kv, { ...RENDER, ...NO_STATS });
+  const r = await post('/scan', { url: 'http://localhost:9/callback' }, { headers: { 'content-type': 'application/json', 'cf-connecting-ip': '49.205.194.4' } }, env);
+  assert.equal(r.status, 400);
+  assert.equal(kv.report ?? undefined, undefined, 'no report row for a blocked host');
 });
 
 test('e2e: MCP scan_url stamps mcp regardless of the scanned host', async () => {
